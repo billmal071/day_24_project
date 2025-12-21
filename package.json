@@ -1,0 +1,39 @@
+{
+  "name": "api-gateway-monorepo",
+  "version": "0.0.1",
+  "description": "Developer API Gateway & Dashboard",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "pnpm --filter @api-gateway/backend start:dev",
+    "dev:frontend": "pnpm --filter @api-gateway/frontend dev",
+    "dev:all": "pnpm run -r --parallel dev",
+    "build": "pnpm run -r build",
+    "build:backend": "pnpm --filter @api-gateway/backend build",
+    "build:frontend": "pnpm --filter @api-gateway/frontend build",
+    "test": "pnpm run -r test",
+    "lint": "pnpm run -r lint",
+    "db:generate": "pnpm --filter @api-gateway/backend db:generate",
+    "db:push": "pnpm --filter @api-gateway/backend db:push",
+    "db:migrate": "pnpm --filter @api-gateway/backend db:migrate",
+    "db:studio": "pnpm --filter @api-gateway/backend db:studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^16.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
