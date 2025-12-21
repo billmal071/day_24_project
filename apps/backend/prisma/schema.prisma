@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// API Key for authenticating gateway requests
+model ApiKey {
+  id          String    @id @default(uuid())
+  key         String    @unique @db.VarChar(64) // SHA-256 hashed key
+  keyPrefix   String    @map("key_prefix") @db.VarChar(8) // First 8 chars for identification
+  name        String    @db.VarChar(255)
+  description String?   @db.Text
+
+  // Rate limiting configuration (per-key customization)
+  rateLimit  Int @default(10) @map("rate_limit") // Requests per minute
+  ratePeriod Int @default(60000) @map("rate_period") // Period in milliseconds
+
+  // Status and metadata
+  isActive   Boolean   @default(true) @map("is_active")
+  lastUsedAt DateTime? @map("last_used_at")
+  expiresAt  DateTime? @map("expires_at")
+
+  // Audit fields
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  requestLogs RequestLog[]
+
+  @@index([key])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+/// Request log for traffic analytics
+model RequestLog {
+  id String @id @default(uuid())
+
+  // Request details
+  method      String  @db.VarChar(10)
+  path        String  @db.VarChar(2048)
+  queryParams Json?   @map("query_params")
+  headers     Json? // Sanitized headers (no sensitive data)
+
+  // Response details
+  statusCode   Int  @map("status_code")
+  responseTime Int  @map("response_time") // in milliseconds
+  responseSize Int? @map("response_size") // in bytes
+
+  // Client info
+  clientIp  String  @map("client_ip") @db.VarChar(45) // IPv6 compatible
+  userAgent String? @map("user_agent") @db.VarChar(512)
+
+  // Upstream info (proxied request)
+  upstreamUrl  String? @map("upstream_url") @db.VarChar(2048)
+  upstreamTime Int?    @map("upstream_time") // in milliseconds
+
+  // Error tracking
+  errorMessage String? @map("error_message") @db.Text
+  errorCode    String? @map("error_code") @db.VarChar(50)
+
+  // Timestamps - B-Tree index for efficient time-range queries (Day 16)
+  timestamp DateTime @default(now())
+
+  // Relations
+  apiKeyId String @map("api_key_id")
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  // Indexes for common query patterns
+  @@index([timestamp(sort: Desc)]) // B-Tree index on timestamp (descending for recent-first)
+  @@index([apiKeyId])
+  @@index([statusCode])
+  @@index([apiKeyId, timestamp(sort: Desc)]) // Composite for per-key analytics
+  @@index([method, path]) // For endpoint analytics
+  @@map("request_logs")
+}
+
+/// Rate limit events for analytics
+model RateLimitEvent {
+  id           String   @id @default(uuid())
+  apiKeyId     String   @map("api_key_id")
+  timestamp    DateTime @default(now())
+  requestCount Int      @map("request_count")
+  wasBlocked   Boolean  @map("was_blocked")
+
+  @@index([timestamp(sort: Desc)])
+  @@index([apiKeyId, timestamp])
+  @@map("rate_limit_events")
+}
