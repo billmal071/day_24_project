@@ -28,8 +28,8 @@ export class GatewayController {
   @UseInterceptors(CachingInterceptor)
   async proxyRequest(
     @Req() req: ExtendedRequest,
-    @Res() res: Response,
-  ): Promise<void> {
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<unknown> {
     // Extract path after /api/v1/proxy
     const fullPath = req.path;
     const path = fullPath.replace(/^\/api\/v1\/proxy/, '') || '/';
@@ -69,6 +69,8 @@ export class GatewayController {
     res.setHeader('X-Proxied-By', 'api-gateway');
     res.setHeader('X-Upstream-Status', result.status.toString());
 
-    res.status(result.status).json(result.data);
+    // Set status code and return data (passthrough allows interceptors to work)
+    res.status(result.status);
+    return result.data;
   }
 }
