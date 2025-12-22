@@ -1,98 +1,255 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Developer API Gateway & Dashboard
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A production-ready API gateway that manages traffic, enforces rate limits, caches responses, and provides usage analytics. Built as a capstone project integrating backend fundamentals.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Architecture
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ pnpm install
+```
+┌─────────────┐     ┌─────────────────────────────────────────┐     ┌──────────────┐
+│   Client    │────▶│            API Gateway                  │────▶│   Upstream   │
+└─────────────┘     │           (NestJS)                      │     │     API      │
+                    │                                         │     └──────────────┘
+┌─────────────┐     │  ┌─────────┐ ┌─────────┐ ┌───────────┐  │
+│  Dashboard  │────▶│  │API Key  │▶│  Rate   │▶│  Caching  │  │
+│  (Next.js)  │     │  │ Guard   │ │ Limiter │ │Interceptor│  │
+└─────────────┘     └──────────────────┬──────────────────────┘
+                                       │
+                    ┌──────────────────┴──────────────────────┐
+                    │                                         │
+              ┌─────▼─────┐                           ┌───────▼───────┐
+              │   Redis   │                           │  PostgreSQL   │
+              │  (Cache)  │                           │    (Data)     │
+              └───────────┘                           └───────────────┘
 ```
 
-## Compile and run the project
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| **API Key Auth** | SHA-256 hashed keys with Redis-cached validation |
+| **Rate Limiting** | 10 requests/minute per key (configurable) |
+| **Response Caching** | 60-second TTL for GET requests |
+| **Request Logging** | Full request/response logging to PostgreSQL |
+| **Security Headers** | Helmet (CSP, HSTS, X-Frame-Options, etc.) |
+| **Analytics Dashboard** | Real-time usage metrics and charts |
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js >= 20
+- pnpm >= 9
+- Docker & Docker Compose
+
+### Installation
 
 ```bash
-# development
-$ pnpm run start
+# Clone and install
+git clone <repo-url>
+cd day_24_project
+pnpm install
 
-# watch mode
-$ pnpm run start:dev
+# Start infrastructure
+docker compose up -d
 
-# production mode
-$ pnpm run start:prod
+# Setup database
+pnpm db:push
+
+# Start development servers
+pnpm dev:all
 ```
 
-## Run tests
+### Access Points
+
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:3001 |
+| Backend API | http://localhost:3002/api/v1 |
+| Health Check | http://localhost:3002/api/v1/health |
+
+## Usage
+
+### Create an API Key
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+curl -X POST http://localhost:3002/api/v1/auth/keys \
+  -H "Content-Type: application/json" \
+  -d '{"name": "My App", "description": "Production key"}'
 ```
 
-## Deployment
+Response:
+```json
+{
+  "id": "uuid",
+  "key": "your-api-key-save-this",
+  "keyPrefix": "abcd1234",
+  "message": "Save this API key securely - it will not be shown again!"
+}
+```
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Make Authenticated Requests
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+curl http://localhost:3002/api/v1/proxy/posts/1 \
+  -H "Authorization: Bearer your-api-key"
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Response headers include:
+```
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 9
+X-RateLimit-Reset: 60
+X-Cache: MISS
+X-Response-Time: 245ms
+```
 
-## Resources
+### Rate Limiting
 
-Check out a few resources that may come in handy when working with NestJS:
+After 10 requests within a minute:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+HTTP/1.1 429 Too Many Requests
 
-## Support
+{
+  "statusCode": 429,
+  "message": "Rate limit exceeded. Try again in 45 seconds.",
+  "code": "RATE_LIMIT_EXCEEDED"
+}
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Project Structure
 
-## Stay in touch
+```
+├── apps/
+│   ├── backend/                 # NestJS API Gateway
+│   │   ├── src/
+│   │   │   ├── auth/            # API key management
+│   │   │   ├── gateway/         # Request proxying & caching
+│   │   │   ├── rate-limiting/   # Redis-based rate limiter
+│   │   │   ├── analytics/       # Usage statistics
+│   │   │   ├── redis/           # Redis service
+│   │   │   └── prisma/          # Database service
+│   │   └── prisma/
+│   │       └── schema.prisma    # Database schema
+│   │
+│   └── frontend/                # Next.js Dashboard
+│       └── src/
+│           ├── app/             # Pages (dashboard, api-keys)
+│           ├── components/      # UI components
+│           └── lib/api/         # API client with safe fetch
+│
+└── docker-compose.yml           # PostgreSQL + Redis
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## API Endpoints
+
+### Public
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/keys` | Create new API key |
+| GET | `/health` | Health check |
+
+### Authenticated (requires API key)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/auth/keys` | List all API keys |
+| GET | `/auth/keys/:id` | Get key details |
+| DELETE | `/auth/keys/:id` | Revoke a key |
+| ALL | `/proxy/*` | Proxy to upstream API |
+| GET | `/analytics/overview` | Dashboard stats |
+| GET | `/analytics/requests` | Request logs |
+
+## Configuration
+
+### Backend Environment Variables
+
+```bash
+# .env
+PORT=3002
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/api_gateway?connection_limit=10"
+REDIS_HOST=localhost
+REDIS_PORT=6379
+UPSTREAM_URL=https://jsonplaceholder.typicode.com
+DEFAULT_RATE_LIMIT=10
+DEFAULT_RATE_PERIOD=60000
+```
+
+### Frontend Environment Variables
+
+```bash
+# .env
+NEXT_PUBLIC_API_URL=http://localhost:3002
+```
+
+## How It Works
+
+### Request Flow
+
+1. **API Key Guard** - Validates the key (checks Redis cache, then PostgreSQL)
+2. **Rate Limit Guard** - Increments Redis counter, rejects if over limit
+3. **Caching Interceptor** - Returns cached response for GET requests if available
+4. **Gateway Controller** - Proxies request to upstream API
+5. **Logging Interceptor** - Saves request details to PostgreSQL
+
+### Caching Strategy
+
+| Cache | TTL | Purpose |
+|-------|-----|---------|
+| API Key Validation | 5 min | Avoid DB hit on every request |
+| Response Cache | 1 min | Speed up repeated GET requests |
+| Rate Limit Window | 60 sec | Sliding window counter |
+
+### Database Indexes
+
+```sql
+-- Fast time-range queries for analytics
+CREATE INDEX idx_timestamp ON request_logs (timestamp DESC);
+
+-- Per-user analytics
+CREATE INDEX idx_apikey_timestamp ON request_logs (api_key_id, timestamp DESC);
+
+-- Endpoint usage stats
+CREATE INDEX idx_method_path ON request_logs (method, path);
+```
+
+## Development
+
+```bash
+# Run backend only
+pnpm dev
+
+# Run frontend only
+pnpm dev:frontend
+
+# Run both
+pnpm dev:all
+
+# Database commands
+pnpm db:generate    # Generate Prisma client
+pnpm db:push        # Push schema changes
+pnpm db:studio      # Open Prisma Studio
+
+# Docker
+pnpm docker:up      # Start PostgreSQL + Redis
+pnpm docker:down    # Stop containers
+```
+
+## Tech Stack
+
+### Backend
+- **Framework**: NestJS 11
+- **Database**: PostgreSQL 16 + Prisma ORM
+- **Cache**: Redis 7 + ioredis
+- **Security**: Helmet
+
+### Frontend
+- **Framework**: Next.js 14 (App Router)
+- **Styling**: Tailwind CSS
+- **Charts**: Recharts
+- **Security**: next-secure-headers
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT
