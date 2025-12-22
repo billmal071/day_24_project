@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Observable, tap, catchError, throwError } from 'rxjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /**
@@ -70,7 +71,9 @@ export class LoggingInterceptor implements NestInterceptor {
           method: request.method,
           path: request.path || request.url,
           queryParams:
-            Object.keys(request.query || {}).length > 0 ? request.query : null,
+            Object.keys(request.query || {}).length > 0
+              ? (request.query as Prisma.InputJsonValue)
+              : undefined,
           headers: sanitizedHeaders,
           statusCode,
           responseTime,

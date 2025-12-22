@@ -6,7 +6,7 @@ import {
   UseInterceptors,
   Logger,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { GatewayService } from './gateway.service';
 import { CachingInterceptor } from './interceptors/caching.interceptor';
 
@@ -24,7 +24,7 @@ export class GatewayController {
 
   constructor(private gatewayService: GatewayService) {}
 
-  @All('*')
+  @All('*path')
   @UseInterceptors(CachingInterceptor)
   async proxyRequest(
     @Req() req: ExtendedRequest,
