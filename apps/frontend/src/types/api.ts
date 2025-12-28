@@ -1,5 +1,23 @@
 // API Response types
 
+// Auth types
+export interface User {
+  id: string;
+  email: string;
+  createdAt?: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface ApiKey {
   id: string;
   keyPrefix: string;
