@@ -7,6 +7,13 @@ export const REDIS_KEYS = {
   API_KEY_CACHE: (keyHash: string) => `api_key:${keyHash}`,
   API_KEY_VALID: (keyHash: string) => `api_key:${keyHash}:valid`,
 
+  // User authentication
+  REFRESH_TOKEN: (userId: string, tokenId: string) =>
+    `refresh_token:${userId}:${tokenId}`,
+
+  // JWT blacklist for logout - stores blacklisted access token JTIs
+  JWT_BLACKLIST: (jti: string) => `jwt_blacklist:${jti}`,
+
   // Gateway response caching
   CACHE_RESPONSE: (method: string, path: string, queryHash: string) =>
     `cache:${method}:${path}:${queryHash}`,
@@ -25,4 +32,6 @@ export const REDIS_TTL = {
   RESPONSE_CACHE: 60, // 1 minute
   ANALYTICS_HOURLY: 86400, // 24 hours
   ANALYTICS_DAILY: 604800, // 7 days
+  REFRESH_TOKEN: 604800, // 7 days
+  JWT_BLACKLIST: 900, // 15 minutes (matches access token expiry)
 } as const;
