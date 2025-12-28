@@ -7,6 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// User account for dashboard access
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  apiKeys ApiKey[]
+
+  @@map("users")
+}
+
 /// API Key for authenticating gateway requests
 model ApiKey {
   id          String    @id @default(uuid())
@@ -29,9 +42,12 @@ model ApiKey {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relations
+  userId      String       @map("user_id")
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   requestLogs RequestLog[]
 
   @@index([key])
+  @@index([userId])
   @@index([isActive])
   @@index([expiresAt])
   @@map("api_keys")
@@ -76,6 +92,7 @@ model RequestLog {
   @@index([apiKeyId])
   @@index([statusCode])
   @@index([apiKeyId, timestamp(sort: Desc)]) // Composite for per-key analytics
+  @@index([apiKeyId, statusCode, timestamp(sort: Desc)]) // Composite for analytics with status filtering
   @@index([method, path]) // For endpoint analytics
   @@map("request_logs")
 }
