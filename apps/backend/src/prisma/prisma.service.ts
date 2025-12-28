@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { PERFORMANCE } from '../common/constants';
 
 @Injectable()
 export class PrismaService
@@ -26,7 +27,7 @@ export class PrismaService
     if (process.env.NODE_ENV === 'development') {
       // @ts-expect-error Prisma event typing
       this.$on('query', (e: { query: string; duration: number }) => {
-        if (e.duration > 100) {
+        if (e.duration > PERFORMANCE.SLOW_QUERY_THRESHOLD_MS) {
           this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
         }
       });

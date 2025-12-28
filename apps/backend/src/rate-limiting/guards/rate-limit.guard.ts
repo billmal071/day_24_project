@@ -9,6 +9,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { RedisThrottlerStorage } from '../storage/redis-throttler.storage';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
+import { API_KEY_DEFAULTS } from '../../common/constants';
 
 /**
  * Rate Limit Guard (Day 17 - The Guard)
@@ -43,9 +44,9 @@ export class RateLimitGuard implements CanActivate {
       return true;
     }
 
-    // Get custom rate limit from API key or use defaults (10 req/min)
-    const limit = apiKey.rateLimit || 10;
-    const ttlMs = apiKey.ratePeriod || 60000;
+    // Get custom rate limit from API key or use defaults
+    const limit = apiKey.rateLimit || API_KEY_DEFAULTS.RATE_LIMIT;
+    const ttlMs = apiKey.ratePeriod || API_KEY_DEFAULTS.RATE_PERIOD_MS;
     const ttlSeconds = Math.ceil(ttlMs / 1000);
 
     // Check and increment rate limit

@@ -4,12 +4,13 @@ import { GatewayController } from './gateway.controller';
 import { GatewayService } from './gateway.service';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { CachingInterceptor } from './interceptors/caching.interceptor';
+import { HTTP_TIMEOUTS, HTTP_CONFIG } from '../common/constants';
 
 @Module({
   imports: [
     HttpModule.register({
-      timeout: 30000,
-      maxRedirects: 5,
+      timeout: HTTP_TIMEOUTS.REQUEST_TIMEOUT,
+      maxRedirects: HTTP_CONFIG.MAX_REDIRECTS,
     }),
   ],
   controllers: [GatewayController],

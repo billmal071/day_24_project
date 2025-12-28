@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom, timeout, catchError } from 'rxjs';
+import { HTTP_TIMEOUTS } from '../common/constants';
 
 export interface ProxyResult {
   data: unknown;
@@ -57,7 +58,7 @@ export class GatewayService {
             validateStatus: () => true, // Don't throw on non-2xx
           })
           .pipe(
-            timeout(30000),
+            timeout(HTTP_TIMEOUTS.GATEWAY_TIMEOUT),
             catchError((error) => {
               this.logger.error(`Upstream request failed: ${error.message}`);
               throw new HttpException(

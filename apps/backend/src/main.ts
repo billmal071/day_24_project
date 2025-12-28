@@ -3,6 +3,7 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { SECURITY_HEADERS } from './common/constants';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,7 +26,7 @@ async function bootstrap() {
       dnsPrefetchControl: { allow: false },
       frameguard: { action: 'deny' },
       hidePoweredBy: true,
-      hsts: { maxAge: 31536000, includeSubDomains: true },
+      hsts: { maxAge: SECURITY_HEADERS.HSTS_MAX_AGE, includeSubDomains: true },
       ieNoOpen: true,
       noSniff: true,
       originAgentCluster: true,

@@ -8,6 +8,7 @@ import {
 import { Observable, tap, catchError, throwError } from 'rxjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { STATUS_CODES, STRING_LENGTH } from '../../common/constants';
 
 /**
  * Logging Interceptor - Persists all traffic to PostgreSQL
@@ -25,16 +26,20 @@ export class LoggingInterceptor implements NestInterceptor {
     const startTime = Date.now();
 
     return next.handle().pipe(
-      tap(async () => {
-        await this.logRequest(request, response.statusCode, startTime, null);
+      tap(() => {
+        // Fire and forget - don't await
+        this.logRequest(request, response.statusCode, startTime, null).catch(
+          (err) => this.logger.error('Failed to log request:', err),
+        );
       }),
-      catchError(async (error) => {
-        await this.logRequest(
+      catchError((error) => {
+        // Fire and forget - don't await
+        this.logRequest(
           request,
-          error.status || 500,
+          error.status || STATUS_CODES.DEFAULT_ERROR,
           startTime,
           error,
-        );
+        ).catch((err) => this.logger.error('Failed to log error:', err));
         return throwError(() => error);
       }),
     );
@@ -78,7 +83,7 @@ export class LoggingInterceptor implements NestInterceptor {
           statusCode,
           responseTime,
           clientIp: this.getClientIp(request),
-          userAgent: request.headers['user-agent']?.substring(0, 512),
+          userAgent: request.headers['user-agent']?.substring(0, STRING_LENGTH.USER_AGENT_MAX),
           upstreamUrl: request.proxyResult?.upstreamUrl,
           upstreamTime: request.proxyResult?.responseTime,
           errorMessage: error?.message,

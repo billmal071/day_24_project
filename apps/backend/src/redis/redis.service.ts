@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { REDIS_CONFIG } from '../common/constants';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -20,9 +21,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       port: this.configService.get('REDIS_PORT', 6379),
       password: this.configService.get('REDIS_PASSWORD') || undefined,
       db: this.configService.get('REDIS_DB', 0),
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: REDIS_CONFIG.MAX_RETRIES_PER_REQUEST,
       retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
+        const delay = Math.min(times * REDIS_CONFIG.RETRY_BACKOFF_MS, REDIS_CONFIG.MAX_RETRY_DELAY_MS);
         return delay;
       },
       enableOfflineQueue: true,

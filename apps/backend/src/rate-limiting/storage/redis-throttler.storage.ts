@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '../../redis/redis.service';
-import {
-  REDIS_KEYS,
-  REDIS_TTL,
-} from '../../common/constants/redis-keys.constants';
+import { REDIS_KEYS, REDIS_TTL, API_KEY_DEFAULTS } from '../../common/constants';
 
 export interface ThrottlerRecord {
   totalHits: number;
@@ -28,8 +25,8 @@ export class RedisThrottlerStorage {
    */
   async increment(
     apiKeyId: string,
-    limit: number = 10,
-    ttlSeconds: number = 60,
+    limit: number = API_KEY_DEFAULTS.RATE_LIMIT,
+    ttlSeconds: number = REDIS_TTL.RATE_LIMIT_WINDOW,
   ): Promise<ThrottlerRecord> {
     const redis = this.redisService.getClient();
     const key = REDIS_KEYS.RATE_LIMIT(apiKeyId);

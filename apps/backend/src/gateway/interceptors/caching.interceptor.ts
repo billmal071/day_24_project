@@ -9,10 +9,7 @@ import { Observable, of } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { createHash } from 'crypto';
 import { RedisService } from '../../redis/redis.service';
-import {
-  REDIS_KEYS,
-  REDIS_TTL,
-} from '../../common/constants/redis-keys.constants';
+import { REDIS_KEYS, REDIS_TTL, CACHE_CONFIG } from '../../common/constants';
 
 /**
  * Caching Interceptor - Caches GET responses in Redis (Day 19 - Performance)
@@ -81,7 +78,7 @@ export class CachingInterceptor implements NestInterceptor {
     const queryHash = createHash('md5')
       .update(JSON.stringify(request.query || {}))
       .digest('hex')
-      .substring(0, 8);
+      .substring(0, CACHE_CONFIG.QUERY_HASH_LENGTH);
 
     return REDIS_KEYS.CACHE_RESPONSE(request.method, request.path, queryHash);
   }
