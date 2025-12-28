@@ -7,6 +7,7 @@ import {
   IsString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { ANALYTICS_LIMITS } from '../../common/constants';
 
 export class AnalyticsQueryDto {
   @IsOptional()
@@ -21,14 +22,14 @@ export class AnalyticsQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
-  limit?: number = 50;
+  @Max(ANALYTICS_LIMITS.MAX_LIMIT)
+  limit?: number = ANALYTICS_LIMITS.DEFAULT_LIMIT;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(0)
-  offset?: number = 0;
+  @Min(ANALYTICS_LIMITS.DEFAULT_OFFSET)
+  offset?: number = ANALYTICS_LIMITS.DEFAULT_OFFSET;
 
   @IsOptional()
   @IsString()
