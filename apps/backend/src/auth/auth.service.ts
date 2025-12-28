@@ -1,12 +1,27 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Logger,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
   REDIS_KEYS,
   REDIS_TTL,
-} from '../common/constants/redis-keys.constants';
+  PASSWORD_HASHING,
+  KEY_GENERATION,
+  API_KEY_DEFAULTS,
+} from '../common/constants';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { JwtPayload } from './strategies/jwt.strategy';
 
 interface CachedApiKey {
   id: string;
@@ -18,6 +33,18 @@ interface CachedApiKey {
   expiresAt: string | null;
 }
 
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface AuthResponse extends TokenPair {
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -25,18 +52,200 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private redis: RedisService,
-  ) {}
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) { }
+
+  // ==================== User Authentication ====================
+
+  async register(dto: RegisterDto): Promise<AuthResponse> {
+    // Check if email already exists
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (existing) {
+      throw new ConflictException({
+        message: 'Email already registered',
+        code: 'EMAIL_EXISTS',
+      });
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(dto.password, PASSWORD_HASHING.BCRYPT_SALT_ROUNDS);
+
+    // Create user
+    const user = await this.prisma.user.create({
+      data: {
+        email: dto.email.toLowerCase(),
+        passwordHash,
+      },
+      select: { id: true, email: true },
+    });
+
+    this.logger.log(`User registered: ${user.email}`);
+
+    // Generate tokens
+    const tokens = await this.generateTokens(user.id, user.email);
+
+    return {
+      ...tokens,
+      user,
+    };
+  }
+
+  async login(dto: LoginDto): Promise<AuthResponse> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+      select: { id: true, email: true, passwordHash: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException({
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS',
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException({
+        message: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS',
+      });
+    }
+
+    this.logger.log(`User logged in: ${user.email}`);
+
+    const tokens = await this.generateTokens(user.id, user.email);
+
+    return {
+      ...tokens,
+      user: { id: user.id, email: user.email },
+    };
+  }
+
+  async refreshToken(refreshToken: string): Promise<TokenPair> {
+    try {
+      // Verify the refresh token
+      const payload = this.jwtService.verify<JwtPayload & { tokenId: string }>(
+        refreshToken,
+        { secret: this.configService.get<string>('JWT_SECRET') },
+      );
+
+      // Check if refresh token exists in Redis
+      const cacheKey = REDIS_KEYS.REFRESH_TOKEN(payload.sub, payload.tokenId);
+      const exists = await this.redis.exists(cacheKey);
+
+      if (!exists) {
+        throw new UnauthorizedException({
+          message: 'Invalid refresh token',
+          code: 'INVALID_REFRESH_TOKEN',
+        });
+      }
+
+      // Delete old refresh token
+      await this.redis.del(cacheKey);
+
+      // Generate new tokens
+      return this.generateTokens(payload.sub, payload.email);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException({
+        message: 'Invalid refresh token',
+        code: 'INVALID_REFRESH_TOKEN',
+      });
+    }
+  }
+
+  async logout(
+    userId: string,
+    refreshToken: string,
+    accessToken?: string,
+  ): Promise<void> {
+    try {
+      const payload = this.jwtService.verify<JwtPayload & { tokenId: string }>(
+        refreshToken,
+        { secret: this.configService.get<string>('JWT_SECRET') },
+      );
+
+      // Delete refresh token from Redis
+      const cacheKey = REDIS_KEYS.REFRESH_TOKEN(userId, payload.tokenId);
+      await this.redis.del(cacheKey);
+
+      // Blacklist the access token if provided
+      if (accessToken) {
+        try {
+          const accessPayload = this.jwtService.verify<JwtPayload>(
+            accessToken,
+            { secret: this.configService.get<string>('JWT_SECRET') },
+          );
+          if (accessPayload.jti) {
+            await this.redis.set(
+              REDIS_KEYS.JWT_BLACKLIST(accessPayload.jti),
+              '1',
+              REDIS_TTL.JWT_BLACKLIST,
+            );
+          }
+        } catch {
+          // Access token might be expired, that's fine
+        }
+      }
+
+      this.logger.log(`User logged out: ${userId}`);
+    } catch {
+      // Ignore errors - token might already be invalid
+    }
+  }
+
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, createdAt: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
+  }
+
+  private async generateTokens(userId: string, email: string): Promise<TokenPair> {
+    const tokenId = randomBytes(KEY_GENERATION.TOKEN_ID_BYTES).toString('hex');
+    const jti = randomBytes(KEY_GENERATION.JWT_ID_BYTES).toString('hex');
+
+    const payload: JwtPayload = { sub: userId, email, jti };
+
+    const accessToken = this.jwtService.sign(payload as any, {
+      expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRY', '15m') as any,
+    });
+
+    const refreshToken = this.jwtService.sign(
+      { ...payload, tokenId } as any,
+      { expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRY', '7d') as any },
+    );
+
+    // Store refresh token in Redis
+    const cacheKey = REDIS_KEYS.REFRESH_TOKEN(userId, tokenId);
+    await this.redis.set(cacheKey, '1', REDIS_TTL.REFRESH_TOKEN);
+
+    return { accessToken, refreshToken };
+  }
+
+  // ==================== API Key Management ====================
 
   /**
-   * Generate a new API key
+   * Generate a new API key for a user
    * The raw key is only returned once - it cannot be retrieved later!
    */
   async generateApiKey(
     dto: CreateApiKeyDto,
+    userId: string,
   ): Promise<{ key: string; id: string; prefix: string }> {
-    // Generate a random 32-byte key and encode as base64url
-    const rawKey = randomBytes(32).toString('base64url');
-    const keyPrefix = rawKey.substring(0, 8);
+    // Generate a random key and encode as base64url
+    const rawKey = randomBytes(KEY_GENERATION.API_KEY_BYTES).toString('base64url');
+    const keyPrefix = rawKey.substring(0, KEY_GENERATION.API_KEY_PREFIX_LENGTH);
     const keyHash = this.hashKey(rawKey);
 
     const apiKey = await this.prisma.apiKey.create({
@@ -45,13 +254,14 @@ export class AuthService {
         keyPrefix,
         name: dto.name,
         description: dto.description,
-        rateLimit: dto.rateLimit || 10,
-        ratePeriod: dto.ratePeriod || 60000,
+        rateLimit: dto.rateLimit || API_KEY_DEFAULTS.RATE_LIMIT,
+        ratePeriod: dto.ratePeriod || API_KEY_DEFAULTS.RATE_PERIOD_MS,
         expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        userId,
       },
     });
 
-    this.logger.log(`API key created: ${keyPrefix}*** (${dto.name})`);
+    this.logger.log(`API key created: ${keyPrefix}*** (${dto.name}) for user ${userId}`);
 
     return {
       key: rawKey, // Only returned once!
@@ -132,10 +342,11 @@ export class AuthService {
   }
 
   /**
-   * List all API keys for management dashboard
+   * List all API keys for a user
    */
-  async listApiKeys() {
+  async listApiKeys(userId: string) {
     return this.prisma.apiKey.findMany({
+      where: { userId },
       select: {
         id: true,
         keyPrefix: true,
@@ -152,11 +363,11 @@ export class AuthService {
   }
 
   /**
-   * Get a single API key by ID
+   * Get a single API key by ID (scoped to user)
    */
-  async getApiKey(id: string) {
-    const apiKey = await this.prisma.apiKey.findUnique({
-      where: { id },
+  async getApiKey(id: string, userId: string) {
+    const apiKey = await this.prisma.apiKey.findFirst({
+      where: { id, userId },
       select: {
         id: true,
         keyPrefix: true,
@@ -182,10 +393,13 @@ export class AuthService {
   }
 
   /**
-   * Revoke an API key
+   * Revoke an API key (scoped to user)
    */
-  async revokeApiKey(id: string): Promise<void> {
-    const apiKey = await this.prisma.apiKey.findUnique({ where: { id } });
+  async revokeApiKey(id: string, userId: string): Promise<void> {
+    const apiKey = await this.prisma.apiKey.findFirst({
+      where: { id, userId },
+    });
+
     if (!apiKey) {
       throw new NotFoundException('API key not found');
     }
@@ -200,6 +414,17 @@ export class AuthService {
     await this.redis.del(cacheKey);
 
     this.logger.log(`API key revoked: ${apiKey.keyPrefix}*** (${apiKey.name})`);
+  }
+
+  /**
+   * Get all API key IDs for a user (used for analytics filtering)
+   */
+  async getUserApiKeyIds(userId: string): Promise<string[]> {
+    const keys = await this.prisma.apiKey.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    return keys.map((k) => k.id);
   }
 
   /**

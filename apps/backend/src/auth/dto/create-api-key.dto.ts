@@ -7,28 +7,29 @@ import {
   MaxLength,
   IsDateString,
 } from 'class-validator';
+import { STRING_LENGTH, RATE_LIMIT_BOUNDS } from '../../common/constants';
 
 export class CreateApiKeyDto {
   @IsString()
-  @MaxLength(255)
+  @MaxLength(STRING_LENGTH.API_KEY_NAME_MAX)
   name: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(STRING_LENGTH.DESCRIPTION_MAX)
   description?: string;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(1000)
-  rateLimit?: number; // Requests per minute (default: 10)
+  @Max(RATE_LIMIT_BOUNDS.MAX_REQUESTS)
+  rateLimit?: number;
 
   @IsOptional()
   @IsInt()
-  @Min(1000)
-  @Max(3600000)
-  ratePeriod?: number; // Period in milliseconds (default: 60000)
+  @Min(RATE_LIMIT_BOUNDS.MIN_PERIOD_MS)
+  @Max(RATE_LIMIT_BOUNDS.MAX_PERIOD_MS)
+  ratePeriod?: number;
 
   @IsOptional()
   @IsDateString()

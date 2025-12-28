@@ -7,6 +7,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
+import { USE_JWT_AUTH_KEY } from '../../common/decorators/jwt-auth.decorator';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -22,6 +23,15 @@ export class ApiKeyGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) {
+      return true;
+    }
+
+    // Check if route uses JWT authentication instead of API key
+    const useJwtAuth = this.reflector.getAllAndOverride<boolean>(USE_JWT_AUTH_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (useJwtAuth) {
       return true;
     }
 
