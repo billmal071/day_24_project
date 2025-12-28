@@ -1,60 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { getApiKeys, createApiKey, revokeApiKey } from '@/lib/api/api-keys';
-import type { ApiKey } from '@/types/api';
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from '@/lib/api/api-keys';
 import { Plus, Key, Trash2, Copy, Check, AlertTriangle } from 'lucide-react';
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
-  const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  async function fetchKeys() {
-    const result = await getApiKeys();
-    if (result.success) {
-      setKeys(result.data.keys);
-    } else {
-      setError(result.error.message);
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    fetchKeys();
-  }, []);
+  const { data: keys = [], isLoading, error } = useApiKeys();
+  const createMutation = useCreateApiKey();
+  const revokeMutation = useRevokeApiKey();
 
   async function handleCreate() {
     if (!newKeyName.trim()) return;
-    setCreating(true);
-    const result = await createApiKey({ name: newKeyName });
-    if (result.success) {
-      setNewKey(result.data.key);
+    try {
+      const result = await createMutation.mutateAsync({ name: newKeyName });
+      setNewKey(result.key);
       setNewKeyName('');
-      fetchKeys();
-    } else {
-      setError(result.error.message);
+      setShowCreate(false);
+    } catch {
+      // Error is handled by React Query
     }
-    setCreating(false);
   }
 
   async function handleRevoke(id: string) {
     if (!confirm('Are you sure you want to revoke this API key?')) return;
-    const result = await revokeApiKey(id);
-    if (result.success) {
-      fetchKeys();
-    } else {
-      setError(result.error.message);
-    }
+    revokeMutation.mutate(id);
   }
 
   async function copyToClipboard(text: string) {
@@ -63,7 +41,7 @@ export default function ApiKeysPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">API Keys</h1>
@@ -80,6 +58,8 @@ export default function ApiKeysPage() {
     );
   }
 
+  const errorMessage = error?.message || createMutation.error?.message || revokeMutation.error?.message;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -90,12 +70,12 @@ export default function ApiKeysPage() {
         </Button>
       </div>
 
-      {error && (
+      {errorMessage && (
         <Card className="border-destructive">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              <p>{error}</p>
+              <p>{errorMessage}</p>
             </div>
           </CardContent>
         </Card>
@@ -150,8 +130,8 @@ export default function ApiKeysPage() {
                 onChange={(e) => setNewKeyName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
               />
-              <Button onClick={handleCreate} disabled={creating}>
-                {creating ? 'Creating...' : 'Create'}
+              <Button onClick={handleCreate} disabled={createMutation.isPending}>
+                {createMutation.isPending ? 'Creating...' : 'Create'}
               </Button>
               <Button variant="ghost" onClick={() => setShowCreate(false)}>
                 Cancel
@@ -201,6 +181,7 @@ export default function ApiKeysPage() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleRevoke(key.id)}
+                      disabled={revokeMutation.isPending}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>

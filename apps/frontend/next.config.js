@@ -1,5 +1,8 @@
 const { createSecureHeaders } = require('next-secure-headers');
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const isProduction = process.env.NODE_ENV === 'production';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Security Headers (Day 20 - Security)
@@ -15,15 +18,15 @@ const nextConfig = {
               styleSrc: ["'self'", "'unsafe-inline'"],
               imgSrc: ["'self'", 'data:', 'https:'],
               fontSrc: ["'self'"],
-              connectSrc: ["'self'", 'http://localhost:3000'],
+              connectSrc: ["'self'", API_URL],
               frameSrc: ["'none'"],
               objectSrc: ["'none'"],
             },
           },
-          forceHTTPSRedirect: [
-            true,
-            { maxAge: 63072000, includeSubDomains: true, preload: true },
-          ],
+          // Only force HTTPS in production
+          forceHTTPSRedirect: isProduction
+            ? [true, { maxAge: 63072000, includeSubDomains: true, preload: true }]
+            : false,
           referrerPolicy: 'strict-origin-when-cross-origin',
           xContentTypeOptions: 'nosniff',
           xFrameOptions: 'DENY',

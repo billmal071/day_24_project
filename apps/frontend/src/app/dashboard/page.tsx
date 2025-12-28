@@ -1,31 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getAnalyticsOverview } from '@/lib/api/analytics';
-import type { AnalyticsOverview } from '@/types/api';
+import { useAnalyticsOverview } from '@/lib/api/analytics';
 import { Activity, AlertTriangle, Clock, Key } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [data, setData] = useState<AnalyticsOverview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, error } = useAnalyticsOverview();
 
-  useEffect(() => {
-    async function fetchData() {
-      const result = await getAnalyticsOverview();
-      if (result.success) {
-        setData(result.data);
-      } else {
-        setError(result.error.message);
-      }
-      setLoading(false);
-    }
-    fetchData();
-  }, []);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -53,11 +36,8 @@ export default function DashboardPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              <p>{error}</p>
+              <p>{error.message}</p>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
-              Make sure the backend is running and Redis/PostgreSQL are connected.
-            </p>
           </CardContent>
         </Card>
       </div>

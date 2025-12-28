@@ -1,34 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getRequestLogs } from '@/lib/api/analytics';
-import type { RequestLog } from '@/types/api';
+import { useRequestLogs } from '@/lib/api/analytics';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function AnalyticsPage() {
-  const [logs, setLogs] = useState<RequestLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState(0);
+  const { data, isLoading, error, refetch, isFetching } = useRequestLogs({ limit: 50 });
 
-  async function fetchLogs() {
-    setLoading(true);
-    const result = await getRequestLogs({ limit: 50 });
-    if (result.success) {
-      setLogs(result.data.logs);
-      setTotal(result.data.pagination.total);
-    } else {
-      setError(result.error.message);
-    }
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+  const logs = data?.logs ?? [];
+  const total = data?.pagination.total ?? 0;
 
   function getStatusColor(status: number) {
     if (status >= 200 && status < 300) return 'success';
@@ -37,7 +19,7 @@ export default function AnalyticsPage() {
     return 'outline';
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Request Logs</h1>
@@ -62,7 +44,7 @@ export default function AnalyticsPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-destructive">
               <AlertTriangle className="h-5 w-5" />
-              <p>{error}</p>
+              <p>{error.message}</p>
             </div>
           </CardContent>
         </Card>
@@ -77,8 +59,8 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold">Request Logs</h1>
           <p className="text-muted-foreground">{total} total requests</p>
         </div>
-        <Button variant="outline" onClick={fetchLogs}>
-          <RefreshCw className="mr-2 h-4 w-4" />
+        <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
